@@ -1,1 +1,1 @@
-# Project-Email-Spam-Classification
+# Email-Spam-Classification
