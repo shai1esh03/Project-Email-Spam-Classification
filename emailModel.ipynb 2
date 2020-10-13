@@ -1,0 +1,1188 @@
+{
+ "cells": [
+  {
+   "cell_type": "code",
+   "execution_count": 1,
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "import pandas as pd\n",
+    "import numpy as np\n",
+    "import re"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 2,
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "from nltk.stem import WordNetLemmatizer\n",
+    "from nltk.corpus import stopwords\n",
+    "\n",
+    "from sklearn.model_selection import train_test_split\n",
+    "from sklearn.pipeline import Pipeline\n",
+    "\n",
+    "from sklearn.naive_bayes import MultinomialNB\n",
+    "from sklearn.feature_extraction.text import CountVectorizer\n",
+    "from sklearn.feature_extraction.text import TfidfVectorizer\n",
+    "\n",
+    "from sklearn import metrics\n",
+    "from sklearn.model_selection import cross_val_score"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 5,
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "mail = pd.read_csv('mail.csv', index_col=None)"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 8,
+   "metadata": {},
+   "outputs": [
+    {
+     "data": {
+      "text/html": [
+       "<div>\n",
+       "<style scoped>\n",
+       "    .dataframe tbody tr th:only-of-type {\n",
+       "        vertical-align: middle;\n",
+       "    }\n",
+       "\n",
+       "    .dataframe tbody tr th {\n",
+       "        vertical-align: top;\n",
+       "    }\n",
+       "\n",
+       "    .dataframe thead th {\n",
+       "        text-align: right;\n",
+       "    }\n",
+       "</style>\n",
+       "<table border=\"1\" class=\"dataframe\">\n",
+       "  <thead>\n",
+       "    <tr style=\"text-align: right;\">\n",
+       "      <th></th>\n",
+       "      <th>Unnamed: 0</th>\n",
+       "      <th>labels</th>\n",
+       "      <th>clean</th>\n",
+       "    </tr>\n",
+       "  </thead>\n",
+       "  <tbody>\n",
+       "    <tr>\n",
+       "      <th>0</th>\n",
+       "      <td>0</td>\n",
+       "      <td>0</td>\n",
+       "      <td>['', 'date', 'wed', '21', 'aug', '2002', '10',...</td>\n",
+       "    </tr>\n",
+       "    <tr>\n",
+       "      <th>1</th>\n",
+       "      <td>1</td>\n",
+       "      <td>0</td>\n",
+       "      <td>['', 'martin', 'posted', 'ntassos', 'papadopou...</td>\n",
+       "    </tr>\n",
+       "    <tr>\n",
+       "      <th>2</th>\n",
+       "      <td>2</td>\n",
+       "      <td>0</td>\n",
+       "      <td>['', 'man', 'threatens', 'explosion', 'moscow'...</td>\n",
+       "    </tr>\n",
+       "    <tr>\n",
+       "      <th>3</th>\n",
+       "      <td>3</td>\n",
+       "      <td>0</td>\n",
+       "      <td>['', 'klez', 'virus', 'die', 'nalready', 'prol...</td>\n",
+       "    </tr>\n",
+       "    <tr>\n",
+       "      <th>4</th>\n",
+       "      <td>4</td>\n",
+       "      <td>0</td>\n",
+       "      <td>['', 'wed', 'aug', '21', '2002', '15', '46', '...</td>\n",
+       "    </tr>\n",
+       "  </tbody>\n",
+       "</table>\n",
+       "</div>"
+      ],
+      "text/plain": [
+       "   Unnamed: 0  labels                                              clean\n",
+       "0           0       0  ['', 'date', 'wed', '21', 'aug', '2002', '10',...\n",
+       "1           1       0  ['', 'martin', 'posted', 'ntassos', 'papadopou...\n",
+       "2           2       0  ['', 'man', 'threatens', 'explosion', 'moscow'...\n",
+       "3           3       0  ['', 'klez', 'virus', 'die', 'nalready', 'prol...\n",
+       "4           4       0  ['', 'wed', 'aug', '21', '2002', '15', '46', '..."
+      ]
+     },
+     "execution_count": 8,
+     "metadata": {},
+     "output_type": "execute_result"
+    }
+   ],
+   "source": [
+    "mail.head()"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 9,
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "mail.drop('Unnamed: 0', axis=1, inplace =True)"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 10,
+   "metadata": {},
+   "outputs": [
+    {
+     "name": "stdout",
+     "output_type": "stream",
+     "text": [
+      "<class 'pandas.core.frame.DataFrame'>\n",
+      "RangeIndex: 3051 entries, 0 to 3050\n",
+      "Data columns (total 2 columns):\n",
+      " #   Column  Non-Null Count  Dtype \n",
+      "---  ------  --------------  ----- \n",
+      " 0   labels  3051 non-null   int64 \n",
+      " 1   clean   3051 non-null   object\n",
+      "dtypes: int64(1), object(1)\n",
+      "memory usage: 47.8+ KB\n"
+     ]
+    }
+   ],
+   "source": [
+    "mail.info()"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 11,
+   "metadata": {},
+   "outputs": [
+    {
+     "data": {
+      "text/html": [
+       "<div>\n",
+       "<style scoped>\n",
+       "    .dataframe tbody tr th:only-of-type {\n",
+       "        vertical-align: middle;\n",
+       "    }\n",
+       "\n",
+       "    .dataframe tbody tr th {\n",
+       "        vertical-align: top;\n",
+       "    }\n",
+       "\n",
+       "    .dataframe thead th {\n",
+       "        text-align: right;\n",
+       "    }\n",
+       "</style>\n",
+       "<table border=\"1\" class=\"dataframe\">\n",
+       "  <thead>\n",
+       "    <tr style=\"text-align: right;\">\n",
+       "      <th></th>\n",
+       "      <th>labels</th>\n",
+       "    </tr>\n",
+       "  </thead>\n",
+       "  <tbody>\n",
+       "    <tr>\n",
+       "      <th>count</th>\n",
+       "      <td>3051.000000</td>\n",
+       "    </tr>\n",
+       "    <tr>\n",
+       "      <th>mean</th>\n",
+       "      <td>0.163881</td>\n",
+       "    </tr>\n",
+       "    <tr>\n",
+       "      <th>std</th>\n",
+       "      <td>0.370228</td>\n",
+       "    </tr>\n",
+       "    <tr>\n",
+       "      <th>min</th>\n",
+       "      <td>0.000000</td>\n",
+       "    </tr>\n",
+       "    <tr>\n",
+       "      <th>25%</th>\n",
+       "      <td>0.000000</td>\n",
+       "    </tr>\n",
+       "    <tr>\n",
+       "      <th>50%</th>\n",
+       "      <td>0.000000</td>\n",
+       "    </tr>\n",
+       "    <tr>\n",
+       "      <th>75%</th>\n",
+       "      <td>0.000000</td>\n",
+       "    </tr>\n",
+       "    <tr>\n",
+       "      <th>max</th>\n",
+       "      <td>1.000000</td>\n",
+       "    </tr>\n",
+       "  </tbody>\n",
+       "</table>\n",
+       "</div>"
+      ],
+      "text/plain": [
+       "            labels\n",
+       "count  3051.000000\n",
+       "mean      0.163881\n",
+       "std       0.370228\n",
+       "min       0.000000\n",
+       "25%       0.000000\n",
+       "50%       0.000000\n",
+       "75%       0.000000\n",
+       "max       1.000000"
+      ]
+     },
+     "execution_count": 11,
+     "metadata": {},
+     "output_type": "execute_result"
+    }
+   ],
+   "source": [
+    "mail.describe()"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "metadata": {},
+   "source": [
+    "### Clean Text with stemming/Lemmatizing"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 12,
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "wn = WordNetLemmatizer()"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 13,
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "stopword = stopwords.words('english')"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 14,
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "mail['clean1'] = mail['clean'].apply(lambda x: \" \".join([wn.lemmatize(i).lower() for i in re.sub('[^a-zA-Z0-9]',' ',x).split() if i not in stopword]))"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 15,
+   "metadata": {},
+   "outputs": [
+    {
+     "data": {
+      "text/html": [
+       "<div>\n",
+       "<style scoped>\n",
+       "    .dataframe tbody tr th:only-of-type {\n",
+       "        vertical-align: middle;\n",
+       "    }\n",
+       "\n",
+       "    .dataframe tbody tr th {\n",
+       "        vertical-align: top;\n",
+       "    }\n",
+       "\n",
+       "    .dataframe thead th {\n",
+       "        text-align: right;\n",
+       "    }\n",
+       "</style>\n",
+       "<table border=\"1\" class=\"dataframe\">\n",
+       "  <thead>\n",
+       "    <tr style=\"text-align: right;\">\n",
+       "      <th></th>\n",
+       "      <th>labels</th>\n",
+       "      <th>clean</th>\n",
+       "      <th>clean1</th>\n",
+       "    </tr>\n",
+       "  </thead>\n",
+       "  <tbody>\n",
+       "    <tr>\n",
+       "      <th>0</th>\n",
+       "      <td>0</td>\n",
+       "      <td>['', 'date', 'wed', '21', 'aug', '2002', '10',...</td>\n",
+       "      <td>date wed 21 aug 2002 10 54 46 0500 chris garri...</td>\n",
+       "    </tr>\n",
+       "    <tr>\n",
+       "      <th>1</th>\n",
+       "      <td>0</td>\n",
+       "      <td>['', 'martin', 'posted', 'ntassos', 'papadopou...</td>\n",
+       "      <td>martin posted ntassos papadopoulos greek sculp...</td>\n",
+       "    </tr>\n",
+       "    <tr>\n",
+       "      <th>2</th>\n",
+       "      <td>0</td>\n",
+       "      <td>['', 'man', 'threatens', 'explosion', 'moscow'...</td>\n",
+       "      <td>man threatens explosion moscow nthursday augus...</td>\n",
+       "    </tr>\n",
+       "    <tr>\n",
+       "      <th>3</th>\n",
+       "      <td>0</td>\n",
+       "      <td>['', 'klez', 'virus', 'die', 'nalready', 'prol...</td>\n",
+       "      <td>klez virus die nalready prolific virus ever kl...</td>\n",
+       "    </tr>\n",
+       "    <tr>\n",
+       "      <th>4</th>\n",
+       "      <td>0</td>\n",
+       "      <td>['', 'wed', 'aug', '21', '2002', '15', '46', '...</td>\n",
+       "      <td>wed aug 21 2002 15 46 ulises ponce wrote hi co...</td>\n",
+       "    </tr>\n",
+       "    <tr>\n",
+       "      <th>...</th>\n",
+       "      <td>...</td>\n",
+       "      <td>...</td>\n",
+       "      <td>...</td>\n",
+       "    </tr>\n",
+       "    <tr>\n",
+       "      <th>3046</th>\n",
+       "      <td>1</td>\n",
+       "      <td>['', 'stumbling', 'nthe', 'greatest', 'way', '...</td>\n",
+       "      <td>stumbling nthe greatest way marketing century ...</td>\n",
+       "    </tr>\n",
+       "    <tr>\n",
+       "      <th>3047</th>\n",
+       "      <td>1</td>\n",
+       "      <td>['', 'mean', 'made', 'usa', 'cna', 'hitting', ...</td>\n",
+       "      <td>mean made usa cna hitting road tell ingenuity ...</td>\n",
+       "    </tr>\n",
+       "    <tr>\n",
+       "      <th>3048</th>\n",
+       "      <td>1</td>\n",
+       "      <td>['', 'html', 'head', 'meta', 'http', 'equiv', ...</td>\n",
+       "      <td>html head meta http equiv content language con...</td>\n",
+       "    </tr>\n",
+       "    <tr>\n",
+       "      <th>3049</th>\n",
+       "      <td>1</td>\n",
+       "      <td>['', 'html', 'body', 'tr', 'valign', 'top', 't...</td>\n",
+       "      <td>html body tr valign top td height 295 bgcolor ...</td>\n",
+       "    </tr>\n",
+       "    <tr>\n",
+       "      <th>3050</th>\n",
+       "      <td>1</td>\n",
+       "      <td>['', 'uncommon', 'exotic', 'pleasure', 'botani...</td>\n",
+       "      <td>uncommon exotic pleasure botanical nfeeling ma...</td>\n",
+       "    </tr>\n",
+       "  </tbody>\n",
+       "</table>\n",
+       "<p>3051 rows × 3 columns</p>\n",
+       "</div>"
+      ],
+      "text/plain": [
+       "      labels                                              clean  \\\n",
+       "0          0  ['', 'date', 'wed', '21', 'aug', '2002', '10',...   \n",
+       "1          0  ['', 'martin', 'posted', 'ntassos', 'papadopou...   \n",
+       "2          0  ['', 'man', 'threatens', 'explosion', 'moscow'...   \n",
+       "3          0  ['', 'klez', 'virus', 'die', 'nalready', 'prol...   \n",
+       "4          0  ['', 'wed', 'aug', '21', '2002', '15', '46', '...   \n",
+       "...      ...                                                ...   \n",
+       "3046       1  ['', 'stumbling', 'nthe', 'greatest', 'way', '...   \n",
+       "3047       1  ['', 'mean', 'made', 'usa', 'cna', 'hitting', ...   \n",
+       "3048       1  ['', 'html', 'head', 'meta', 'http', 'equiv', ...   \n",
+       "3049       1  ['', 'html', 'body', 'tr', 'valign', 'top', 't...   \n",
+       "3050       1  ['', 'uncommon', 'exotic', 'pleasure', 'botani...   \n",
+       "\n",
+       "                                                 clean1  \n",
+       "0     date wed 21 aug 2002 10 54 46 0500 chris garri...  \n",
+       "1     martin posted ntassos papadopoulos greek sculp...  \n",
+       "2     man threatens explosion moscow nthursday augus...  \n",
+       "3     klez virus die nalready prolific virus ever kl...  \n",
+       "4     wed aug 21 2002 15 46 ulises ponce wrote hi co...  \n",
+       "...                                                 ...  \n",
+       "3046  stumbling nthe greatest way marketing century ...  \n",
+       "3047  mean made usa cna hitting road tell ingenuity ...  \n",
+       "3048  html head meta http equiv content language con...  \n",
+       "3049  html body tr valign top td height 295 bgcolor ...  \n",
+       "3050  uncommon exotic pleasure botanical nfeeling ma...  \n",
+       "\n",
+       "[3051 rows x 3 columns]"
+      ]
+     },
+     "execution_count": 15,
+     "metadata": {},
+     "output_type": "execute_result"
+    }
+   ],
+   "source": [
+    "mail"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 17,
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "X_train, X_test, y_train, y_test = train_test_split(mail['clean1'],mail.labels,test_size=0.2, random_state=42)"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 18,
+   "metadata": {},
+   "outputs": [
+    {
+     "name": "stdout",
+     "output_type": "stream",
+     "text": [
+      "(2440,)\n",
+      "(2440,)\n",
+      "(611,)\n",
+      "(611,)\n"
+     ]
+    }
+   ],
+   "source": [
+    "print(X_train.shape)\n",
+    "print(y_train.shape)\n",
+    "print(X_test.shape)\n",
+    "print(y_test.shape)"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 19,
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "nb_pipeline = Pipeline([('countvect', CountVectorizer(lowercase=True)),\n",
+    "                       ('mnb', MultinomialNB(alpha=0.0,class_prior=[0.4, 0.6]))])"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 20,
+   "metadata": {},
+   "outputs": [
+    {
+     "name": "stderr",
+     "output_type": "stream",
+     "text": [
+      "/Users/tupran/opt/miniconda3/envs/ds/lib/python3.7/site-packages/sklearn/naive_bayes.py:512: UserWarning: alpha too small will result in numeric errors, setting alpha = 1.0e-10\n",
+      "  'setting alpha = %.1e' % _ALPHA_MIN)\n",
+      "/Users/tupran/opt/miniconda3/envs/ds/lib/python3.7/site-packages/sklearn/naive_bayes.py:512: UserWarning: alpha too small will result in numeric errors, setting alpha = 1.0e-10\n",
+      "  'setting alpha = %.1e' % _ALPHA_MIN)\n",
+      "/Users/tupran/opt/miniconda3/envs/ds/lib/python3.7/site-packages/sklearn/naive_bayes.py:512: UserWarning: alpha too small will result in numeric errors, setting alpha = 1.0e-10\n",
+      "  'setting alpha = %.1e' % _ALPHA_MIN)\n",
+      "/Users/tupran/opt/miniconda3/envs/ds/lib/python3.7/site-packages/sklearn/naive_bayes.py:512: UserWarning: alpha too small will result in numeric errors, setting alpha = 1.0e-10\n",
+      "  'setting alpha = %.1e' % _ALPHA_MIN)\n"
+     ]
+    },
+    {
+     "name": "stdout",
+     "output_type": "stream",
+     "text": [
+      "[0.96311475 0.9795082  0.97131148 0.98360656 0.97336066]\n"
+     ]
+    },
+    {
+     "name": "stderr",
+     "output_type": "stream",
+     "text": [
+      "/Users/tupran/opt/miniconda3/envs/ds/lib/python3.7/site-packages/sklearn/naive_bayes.py:512: UserWarning: alpha too small will result in numeric errors, setting alpha = 1.0e-10\n",
+      "  'setting alpha = %.1e' % _ALPHA_MIN)\n"
+     ]
+    }
+   ],
+   "source": [
+    "scores = cross_val_score(nb_pipeline, X_train, y_train, cv=5)\n",
+    "print(scores)"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 21,
+   "metadata": {},
+   "outputs": [
+    {
+     "name": "stderr",
+     "output_type": "stream",
+     "text": [
+      "/Users/tupran/opt/miniconda3/envs/ds/lib/python3.7/site-packages/sklearn/naive_bayes.py:512: UserWarning: alpha too small will result in numeric errors, setting alpha = 1.0e-10\n",
+      "  'setting alpha = %.1e' % _ALPHA_MIN)\n"
+     ]
+    }
+   ],
+   "source": [
+    "model = nb_pipeline.fit(X_train, y_train)"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 22,
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "y_pred = model.predict(X_test)"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 23,
+   "metadata": {},
+   "outputs": [
+    {
+     "data": {
+      "text/plain": [
+       "0.983633387888707"
+      ]
+     },
+     "execution_count": 23,
+     "metadata": {},
+     "output_type": "execute_result"
+    }
+   ],
+   "source": [
+    "model.score(X_test, y_test)"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 24,
+   "metadata": {},
+   "outputs": [
+    {
+     "data": {
+      "text/plain": [
+       "0.983633387888707"
+      ]
+     },
+     "execution_count": 24,
+     "metadata": {},
+     "output_type": "execute_result"
+    }
+   ],
+   "source": [
+    "metrics.accuracy_score(y_test, y_pred)"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 25,
+   "metadata": {},
+   "outputs": [
+    {
+     "data": {
+      "text/plain": [
+       "array([[516,   0],\n",
+       "       [ 10,  85]])"
+      ]
+     },
+     "execution_count": 25,
+     "metadata": {},
+     "output_type": "execute_result"
+    }
+   ],
+   "source": [
+    "metrics.confusion_matrix(y_test, y_pred, labels=[0,1])"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 26,
+   "metadata": {},
+   "outputs": [
+    {
+     "data": {
+      "text/plain": [
+       "array([0.99040307, 0.94444444])"
+      ]
+     },
+     "execution_count": 26,
+     "metadata": {},
+     "output_type": "execute_result"
+    }
+   ],
+   "source": [
+    "metrics.f1_score(y_test, y_pred, average=None)"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 27,
+   "metadata": {},
+   "outputs": [
+    {
+     "data": {
+      "text/plain": [
+       "0.9674237577308594"
+      ]
+     },
+     "execution_count": 27,
+     "metadata": {},
+     "output_type": "execute_result"
+    }
+   ],
+   "source": [
+    "metrics.f1_score(y_test, y_pred, average='macro')"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 28,
+   "metadata": {},
+   "outputs": [
+    {
+     "data": {
+      "text/plain": [
+       "0.983633387888707"
+      ]
+     },
+     "execution_count": 28,
+     "metadata": {},
+     "output_type": "execute_result"
+    }
+   ],
+   "source": [
+    "metrics.f1_score(y_test, y_pred, average='micro')"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 29,
+   "metadata": {},
+   "outputs": [
+    {
+     "data": {
+      "text/plain": [
+       "0.9832572943815644"
+      ]
+     },
+     "execution_count": 29,
+     "metadata": {},
+     "output_type": "execute_result"
+    }
+   ],
+   "source": [
+    "metrics.f1_score(y_test, y_pred, average='weighted')"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 30,
+   "metadata": {},
+   "outputs": [
+    {
+     "data": {
+      "text/plain": [
+       "2679    result feedback form submitted jamie msn com t...\n",
+       "3050    uncommon exotic pleasure botanical nfeeling ma...\n",
+       "2859    3672cxjk2 471rlyh4856dcwl9 357kcvy4323scva9 71...\n",
+       "2829    xc2 x93connecting business world wide web xc2 ...\n",
+       "2752    greeting nyou receiving letter expressed inter...\n",
+       "2783    dear sir nmy name dr steven duba son mr theo n...\n",
+       "2931    love nworld capital group group funding source...\n",
+       "2784    hi job seeker nwhen create free net temp accou...\n",
+       "2805    nsent mail message nfrom enenkio webtv net rob...\n",
+       "2921    nhallo ni found email id directoric ni russian...\n",
+       "Name: clean1, dtype: object"
+      ]
+     },
+     "execution_count": 30,
+     "metadata": {},
+     "output_type": "execute_result"
+    }
+   ],
+   "source": [
+    "X_test[y_test > y_pred]"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 31,
+   "metadata": {},
+   "outputs": [
+    {
+     "data": {
+      "text/plain": [
+       "Series([], Name: clean1, dtype: object)"
+      ]
+     },
+     "execution_count": 31,
+     "metadata": {},
+     "output_type": "execute_result"
+    }
+   ],
+   "source": [
+    "X_test[y_test < y_pred]"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 32,
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "nb_pipeline_tf = Pipeline([('tfidfvect', TfidfVectorizer()),\n",
+    "                       ('mnb', MultinomialNB(alpha=0.0,class_prior=[0.4, 0.6]))])"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 33,
+   "metadata": {},
+   "outputs": [
+    {
+     "name": "stderr",
+     "output_type": "stream",
+     "text": [
+      "/Users/tupran/opt/miniconda3/envs/ds/lib/python3.7/site-packages/sklearn/naive_bayes.py:512: UserWarning: alpha too small will result in numeric errors, setting alpha = 1.0e-10\n",
+      "  'setting alpha = %.1e' % _ALPHA_MIN)\n",
+      "/Users/tupran/opt/miniconda3/envs/ds/lib/python3.7/site-packages/sklearn/naive_bayes.py:512: UserWarning: alpha too small will result in numeric errors, setting alpha = 1.0e-10\n",
+      "  'setting alpha = %.1e' % _ALPHA_MIN)\n",
+      "/Users/tupran/opt/miniconda3/envs/ds/lib/python3.7/site-packages/sklearn/naive_bayes.py:512: UserWarning: alpha too small will result in numeric errors, setting alpha = 1.0e-10\n",
+      "  'setting alpha = %.1e' % _ALPHA_MIN)\n",
+      "/Users/tupran/opt/miniconda3/envs/ds/lib/python3.7/site-packages/sklearn/naive_bayes.py:512: UserWarning: alpha too small will result in numeric errors, setting alpha = 1.0e-10\n",
+      "  'setting alpha = %.1e' % _ALPHA_MIN)\n",
+      "/Users/tupran/opt/miniconda3/envs/ds/lib/python3.7/site-packages/sklearn/naive_bayes.py:512: UserWarning: alpha too small will result in numeric errors, setting alpha = 1.0e-10\n",
+      "  'setting alpha = %.1e' % _ALPHA_MIN)\n"
+     ]
+    },
+    {
+     "name": "stdout",
+     "output_type": "stream",
+     "text": [
+      "[0.97131148 0.98770492 0.9795082  0.98565574 0.97745902]\n"
+     ]
+    }
+   ],
+   "source": [
+    "scores = cross_val_score(nb_pipeline_tf, X_train, y_train, cv=5)\n",
+    "print(scores)"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 34,
+   "metadata": {},
+   "outputs": [
+    {
+     "name": "stderr",
+     "output_type": "stream",
+     "text": [
+      "/Users/tupran/opt/miniconda3/envs/ds/lib/python3.7/site-packages/sklearn/naive_bayes.py:512: UserWarning: alpha too small will result in numeric errors, setting alpha = 1.0e-10\n",
+      "  'setting alpha = %.1e' % _ALPHA_MIN)\n"
+     ]
+    }
+   ],
+   "source": [
+    "tfmodel = nb_pipeline_tf.fit(X_train, y_train)"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 35,
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "y_pred_tf = tfmodel.predict(X_test)"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 36,
+   "metadata": {},
+   "outputs": [
+    {
+     "data": {
+      "text/plain": [
+       "0.9852700490998363"
+      ]
+     },
+     "execution_count": 36,
+     "metadata": {},
+     "output_type": "execute_result"
+    }
+   ],
+   "source": [
+    "metrics.accuracy_score(y_test, y_pred_tf)"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 37,
+   "metadata": {},
+   "outputs": [
+    {
+     "data": {
+      "text/plain": [
+       "array([[516,   0],\n",
+       "       [  9,  86]])"
+      ]
+     },
+     "execution_count": 37,
+     "metadata": {},
+     "output_type": "execute_result"
+    }
+   ],
+   "source": [
+    "metrics.confusion_matrix(y_test, y_pred_tf, labels=[0,1])"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 38,
+   "metadata": {},
+   "outputs": [
+    {
+     "data": {
+      "text/plain": [
+       "array([0.99040307, 0.94444444])"
+      ]
+     },
+     "execution_count": 38,
+     "metadata": {},
+     "output_type": "execute_result"
+    }
+   ],
+   "source": [
+    "metrics.f1_score(y_test, y_pred, average=None)"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 39,
+   "metadata": {},
+   "outputs": [
+    {
+     "data": {
+      "text/plain": [
+       "0.983633387888707"
+      ]
+     },
+     "execution_count": 39,
+     "metadata": {},
+     "output_type": "execute_result"
+    }
+   ],
+   "source": [
+    "metrics.f1_score(y_test, y_pred, average='micro')"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 40,
+   "metadata": {},
+   "outputs": [
+    {
+     "data": {
+      "text/plain": [
+       "0.9674237577308594"
+      ]
+     },
+     "execution_count": 40,
+     "metadata": {},
+     "output_type": "execute_result"
+    }
+   ],
+   "source": [
+    "metrics.f1_score(y_test, y_pred, average='macro')"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 41,
+   "metadata": {},
+   "outputs": [
+    {
+     "data": {
+      "text/plain": [
+       "0.9832572943815644"
+      ]
+     },
+     "execution_count": 41,
+     "metadata": {},
+     "output_type": "execute_result"
+    }
+   ],
+   "source": [
+    "metrics.f1_score(y_test, y_pred, average='weighted')"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 42,
+   "metadata": {},
+   "outputs": [
+    {
+     "data": {
+      "text/plain": [
+       "2679    result feedback form submitted jamie msn com t...\n",
+       "3050    uncommon exotic pleasure botanical nfeeling ma...\n",
+       "2859    3672cxjk2 471rlyh4856dcwl9 357kcvy4323scva9 71...\n",
+       "2829    xc2 x93connecting business world wide web xc2 ...\n",
+       "2783    dear sir nmy name dr steven duba son mr theo n...\n",
+       "2931    love nworld capital group group funding source...\n",
+       "2784    hi job seeker nwhen create free net temp accou...\n",
+       "2805    nsent mail message nfrom enenkio webtv net rob...\n",
+       "2921    nhallo ni found email id directoric ni russian...\n",
+       "Name: clean1, dtype: object"
+      ]
+     },
+     "execution_count": 42,
+     "metadata": {},
+     "output_type": "execute_result"
+    }
+   ],
+   "source": [
+    "X_test[y_test > y_pred_tf]"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 43,
+   "metadata": {},
+   "outputs": [
+    {
+     "data": {
+      "text/plain": [
+       "Series([], Name: clean1, dtype: object)"
+      ]
+     },
+     "execution_count": 43,
+     "metadata": {},
+     "output_type": "execute_result"
+    }
+   ],
+   "source": [
+    "X_test[y_test < y_pred_tf]"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 44,
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "test = ['Get started like a pro | Ultimaker Get started like a pro Having trouble viewing this email? Click here . Hi Shailesh, More and more companies are becoming convinced that 3D printing  plays a key role in their digital transformation roadmap. But what would life at  look like if you adopted 3D printing? Where would you and your team start? To give you an idea, check out our 5 top tips to ramp-up 3D printing production. Read the blog Ultimaker - Corporate Headquarters Stationsplein 32, 3511 ED Utrecht, The Netherlands Email: info@ultimaker.com Phone: +31 88 383 4000 If youâd rather not receive these updates,']"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 45,
+   "metadata": {},
+   "outputs": [
+    {
+     "data": {
+      "text/plain": [
+       "<1x33994 sparse matrix of type '<class 'numpy.int64'>'\n",
+       "\twith 46 stored elements in Compressed Sparse Row format>"
+      ]
+     },
+     "execution_count": 45,
+     "metadata": {},
+     "output_type": "execute_result"
+    }
+   ],
+   "source": [
+    "nb_pipeline.named_steps['countvect'].transform(test)"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 46,
+   "metadata": {},
+   "outputs": [
+    {
+     "data": {
+      "text/plain": [
+       "array([0])"
+      ]
+     },
+     "execution_count": 46,
+     "metadata": {},
+     "output_type": "execute_result"
+    }
+   ],
+   "source": [
+    "nb_pipeline.predict(test)"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 48,
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "andro = pd.read_csv('Andro.csv')"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 49,
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "andro = andro.T"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 50,
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "test = andro[0]"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 51,
+   "metadata": {},
+   "outputs": [
+    {
+     "data": {
+      "text/plain": [
+       "<24x33994 sparse matrix of type '<class 'numpy.int64'>'\n",
+       "\twith 745 stored elements in Compressed Sparse Row format>"
+      ]
+     },
+     "execution_count": 51,
+     "metadata": {},
+     "output_type": "execute_result"
+    }
+   ],
+   "source": [
+    "nb_pipeline.named_steps['countvect'].transform(test)"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 52,
+   "metadata": {},
+   "outputs": [
+    {
+     "data": {
+      "text/plain": [
+       "array([0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1, 0, 0,\n",
+       "       0, 0])"
+      ]
+     },
+     "execution_count": 52,
+     "metadata": {},
+     "output_type": "execute_result"
+    }
+   ],
+   "source": [
+    "nb_pipeline.predict(test)"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 53,
+   "metadata": {},
+   "outputs": [
+    {
+     "data": {
+      "text/plain": [
+       "<24x33994 sparse matrix of type '<class 'numpy.float64'>'\n",
+       "\twith 745 stored elements in Compressed Sparse Row format>"
+      ]
+     },
+     "execution_count": 53,
+     "metadata": {},
+     "output_type": "execute_result"
+    }
+   ],
+   "source": [
+    "nb_pipeline_tf.named_steps['tfidfvect'].transform(test)"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 59,
+   "metadata": {},
+   "outputs": [
+    {
+     "data": {
+      "text/plain": [
+       "array([0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1, 0, 0,\n",
+       "       0, 0])"
+      ]
+     },
+     "execution_count": 59,
+     "metadata": {},
+     "output_type": "execute_result"
+    }
+   ],
+   "source": [
+    "nb_pipeline_tf.predict(test)"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 60,
+   "metadata": {},
+   "outputs": [
+    {
+     "data": {
+      "text/plain": [
+       "'WizIQ Email Hi Tupran Shailesh Kumar, You recently changed your WizIQ password. As a security precaution, this notification has been sent to all email addresses associated with your account. For any queries please contact us at: Email: courses@wiziq.com Phone: + 91-172-5020178 Twitter: http://twitter.com/!/wiziqcourses Facebook: http://facebook.com/wiziqcourses Regards, The WizIQ Team -------------------------------------------------------------- DO NOT REPLY TO THIS MAIL --------------------------------------------------------------'"
+      ]
+     },
+     "execution_count": 60,
+     "metadata": {},
+     "output_type": "execute_result"
+    }
+   ],
+   "source": [
+    "test[3]"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 62,
+   "metadata": {},
+   "outputs": [
+    {
+     "data": {
+      "text/plain": [
+       "'b\\'\\\\n\\\\nManage Big Data in a Smart Way with Hadoop\\\\n\\\\n View this message in your browser\\\\n<http://mailer.wiziqcourses.com/lists/lt.php?id=ME8HCQUDTVAAABpSAQcKAA9b>\\\\n\\\\n <http://mailer.wiziqcourses.com/lists/lt.php?id=ME8ECE4EBlRLBlFSBQIBDQ>\\\\n\\\\n <http://mailer.wiziqcourses.com/lists/lt.php?id=ME8FRAEABh8GAFdQAg4A>\\\\n\\\\n <http://mailer.wiziqcourses.com/lists/lt.php?id=ME8HCQUCTVAAABpSAQcKAA9b>\\\\n\\\\n Hi,\\\\n\\\\n Do you know that big enterprises like Facebook and Amazon use Hadoop\\\\nto manage their huge databases? And many more organizations are\\\\nlooking to implement it with the help of trained and qualified Hadoop\\\\nprofessionals.\\\\n\\\\n If you are a Database developer/administrator, Business Analyst, Java\\\\nprogrammer, or an IT professional, passionate about making a rewarding\\\\ncareer in Big Data, then enroll in the Hadoop Big Data Training course\\\\non WizIQ today! \\\\n\\\\n According to Mckinsey, \"The United States alone faces a shortage of\\\\n140,000 to 190,000 people with analytical expertise and 1.5 million\\\\nmanagers and analysts with the skills to understand and make decisions\\\\nbased on the analysis of big data.\"\\\\n\\\\n Upcoming Batches\\\\n\\\\n Batch 1\\\\n\\\\n IST: Feb 22nd, 2014\\\\n\\\\n 7:00 PM - 10:30 PM\\\\n\\\\n Batch 2\\\\n\\\\n IST: Februaty 27th, \\\\n 2014 7:30 AM - 09:00 AM \\\\n\\\\n Batch 3\\\\n\\\\n IST: March 7th, 2014\\\\n 7:30 AM - 09:00 AM \\\\n\\\\n <http://mailer.wiziqcourses.com/lists/lt.php?id=ME8HCQUCTVAAABpSAQcKAA9b>\\\\n\\\\n To grab this opportunity, enroll now\\\\n<http://mailer.wiziqcourses.com/lists/lt.php?id=ME8HCQUCTVAAABpSAQcKAA9b>\\\\nfor the new batches of Hadoop Big Data Training starting from 22nd\\\\nFebruary, 2014. \\\\n\\\\n Course Highlights\\\\n\\\\n 30 hours of live online classes by highly\\\\n\\\\n qualified Hadoop professionals\\\\n\\\\n Detailed concept building on HBase, Hive,\\\\n\\\\n Pig and MapReduce Framework\\\\n\\\\n In-session project scenarios and practice\\\\n\\\\n exercises for gaining practical \\\\n understanding\\\\n\\\\n All live online classes are recorded and can be\\\\n\\\\n accessed for 6 months\\\\n\\\\n <http://mailer.wiziqcourses.com/lists/lt.php?id=ME8HCQUCTVAAABpSAQcKAA9b>\\\\n\\\\n If you have any questions related to this course, email us at\\\\ncourses@wiziq.com <mailto:courses@wiziq.com>\\\\n\\\\n Note: This course comes with \\\\\\'WizIQ Money Back Guarantee\\\\\\', which\\\\nmeans, if you are not satisfied, get 100% Money back, within first 3\\\\nLive Classes.\\\\n\\\\n WizIQ Inc., 2 On The Common, PO Box 36, Royalston, MA 01368\\\\n\\\\n If you do not wish to receive these newsletters in future, you can\\\\nunsubscribe here.\\\\n<mailer.wiziqcourses.com/lists/?p=unsubscribe&uid=1cc98dbe6cecdf65953c2e88b3714d86>\\\\n\\\\n \\\\xc3\\\\x82\\\\xc2\\\\xa92014 WizIQ Inc. All rights reserved.\\\\n\\\\n\\\\n\\\\n\\\\n\\\\n\\\\n-- powered by phpList, www.phplist.com --\\\\n\\\\n\\\\n\\''"
+      ]
+     },
+     "execution_count": 62,
+     "metadata": {},
+     "output_type": "execute_result"
+    }
+   ],
+   "source": [
+    "test[21]"
+   ]
+  }
+ ],
+ "metadata": {
+  "kernelspec": {
+   "display_name": "Python 3",
+   "language": "python",
+   "name": "python3"
+  },
+  "language_info": {
+   "codemirror_mode": {
+    "name": "ipython",
+    "version": 3
+   },
+   "file_extension": ".py",
+   "mimetype": "text/x-python",
+   "name": "python",
+   "nbconvert_exporter": "python",
+   "pygments_lexer": "ipython3",
+   "version": "3.7.8"
+  }
+ },
+ "nbformat": 4,
+ "nbformat_minor": 4
+}

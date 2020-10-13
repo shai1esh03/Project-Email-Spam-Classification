@@ -1,0 +1,1459 @@
+{
+ "cells": [
+  {
+   "cell_type": "code",
+   "execution_count": 99,
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "#General library modules\n",
+    "import pandas as pd\n",
+    "import os\n",
+    "import glob\n",
+    "from pathlib import Path\n",
+    "import email\n",
+    "import email.policy\n",
+    "import email.parser\n",
+    "from bs4 import BeautifulSoup as bs\n",
+    "import nltk\n",
+    "import re\n",
+    "import string\n",
+    "import chardet"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 100,
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "ham_files = [name for name in sorted(os.listdir('./ham'))]\n",
+    "spam_files = [name for name in sorted(os.listdir('./spam'))]"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 101,
+   "metadata": {},
+   "outputs": [
+    {
+     "data": {
+      "text/plain": [
+       "(2551, 500)"
+      ]
+     },
+     "execution_count": 101,
+     "metadata": {},
+     "output_type": "execute_result"
+    }
+   ],
+   "source": [
+    "len(ham_files), len(spam_files)"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 102,
+   "metadata": {},
+   "outputs": [
+    {
+     "data": {
+      "text/plain": [
+       "('0011.2a1247254a535bac29c476b86c708901',\n",
+       " '0101.48557f7f38d947eab77aefc03d0520a3')"
+      ]
+     },
+     "execution_count": 102,
+     "metadata": {},
+     "output_type": "execute_result"
+    }
+   ],
+   "source": [
+    "spam_files[10], ham_files[100]"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "metadata": {},
+   "source": [
+    "### Downloading Mails "
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 103,
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "def extract_mails(path, mails):\n",
+    "    with open(os.path.join(path, mails), 'rb') as f:\n",
+    "        return email.parser.BytesParser(policy=email.policy.default).parse(f)"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 104,
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "ham_emails = [extract_mails('./ham', ham) for ham in ham_files]"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 105,
+   "metadata": {},
+   "outputs": [
+    {
+     "data": {
+      "text/plain": [
+       "\"URL: http://boingboing.net/#85485775\\nDate: Not supplied\\n\\nNewZoid generates fake news-headlines: \\n\\n    1- Miss Universe Calling For Isidore \\n    2- Rumsfeld Suggests Aspirin Reduces Alzheimer's Risk \\n    3- Editorial Attacks Computer System \\n    4- Stressed Out? Just Call For New TV Show \\n    5- Gore To Hear About It \\n    6- Nurses To Be Given Their Own Passports On Iraq Action \\n    7- US Arraigned In Fighting Slavery \\n    8- Lisa Riley Lines Below Chaos Above  \\n\\nLink[1] Discuss[2] (_Thanks, Daniel[3]!_)\\n\\n[1] http://www.newzoid.com/nzheadlinecombo.asp\\n[2] http://www.quicktopic.com/boing/H/8juRS7A4p6JY\\n[3] http://www.newzoid.com\\n\\n\\n\""
+      ]
+     },
+     "execution_count": 105,
+     "metadata": {},
+     "output_type": "execute_result"
+    }
+   ],
+   "source": [
+    "ham_emails[2002].get_content()"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 106,
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "spam_email = [extract_mails('./spam', spam) for spam in spam_files]"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 107,
+   "metadata": {},
+   "outputs": [
+    {
+     "data": {
+      "text/plain": [
+       "'Cellular Phone Accessories All At Below Wholesale Prices!\\n\\nhttp://202.101.163.34:81/sites/merchant/sales/\\n\\nHands Free Ear Buds 1.99! \\nPhone Holsters 1.98! \\nBooster Antennas Only $0.99\\nPhone Cases 1.98! \\nCar Chargers 1.98! \\nFace Plates As Low As 0.99! \\nLithium Ion Batteries As Low As 6.94! \\n\\nhttp://202.101.163.34:81/sites/merchant/sales/\\n\\nClick Below For Accessories On All NOKIA, MOTOROLA LG, NEXTEL, \\nSAMSUNG, QUALCOMM, ERICSSON, AUDIOVOX PHONES At Below \\nWHOLESALE PRICES!\\n\\nhttp://202.101.163.34:81/sites/merchant/sales/\\n\\n***If You Need Assistance Please Call Us (732) 751-1457***\\n\\n\\n~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~\\nTo be removed from future mailings please send your remove \\nrequest to: removemenow68994@btamail.net.cn \\nThank You and have a super day :)\\n\\n'"
+      ]
+     },
+     "execution_count": 107,
+     "metadata": {},
+     "output_type": "execute_result"
+    }
+   ],
+   "source": [
+    "spam_email[10].get_content()"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 108,
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "def cleanHtml(soup):\n",
+    "    for s in soup(['script', 'style']):\n",
+    "        s.decompose()\n",
+    "    cleanSoup = ' '.join(soup.stripped_strings)\n",
+    "    return cleanSoup"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 109,
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "def extract_msg(emails):\n",
+    "\n",
+    "    #lists to store email messages\n",
+    "    msgText = []\n",
+    "    text = ''\n",
+    "    #for mail in emails:\n",
+    "    if emails.is_multipart():\n",
+    "        html = None\n",
+    "        #for part in emails.walk():\n",
+    "        for part in emails.get_payload():    \n",
+    "            if part.get_content_charset() is None:\n",
+    "                charset = chardet.detect(str(part).encode())#['encoding']\n",
+    "            else:\n",
+    "                charset = part.get_content_charset()\n",
+    "                \n",
+    "            if part.get_content_type() == 'text/plain':\n",
+    "                text = str(part.get_payload(decode=True),str('iso-8859-1'),\"ignore\").encode('utf-8','replace')\n",
+    "                \n",
+    "            if part.get_content_type() == 'text/html':\n",
+    "                msg = str(part.get_payload(decode=True),str('iso-8859-1'),\"ignore\").encode('utf-8','replace')\n",
+    "                soup = bs(msg, 'lxml')\n",
+    "                html = cleanHtml(soup)\n",
+    "\n",
+    "            if part.get_content_type() == 'multipart/alternative':\n",
+    "                for subpart in part.get_payload():\n",
+    "                    if subpart.get_content_charset() is None:\n",
+    "                        charset = chardet.detect(str(subpart))['encoding']\n",
+    "                    else:\n",
+    "                        charset = subpart.get_content_charset()\n",
+    "                        \n",
+    "                    if subpart.get_content_type() == 'text/html':\n",
+    "                        msg = str(subpart.get_payload(decode=True),str(charset),\"ignore\").encode('utf-8','replace')\n",
+    "                        soup = bs(msg, 'lxml')\n",
+    "                        html = cleanHtml(soup)\n",
+    "                        \n",
+    "                    if subpart.get_content_type() == 'text/plain':\n",
+    "                        text = str(subpart.get_payload(decode=True),str(charset),\"ignore\").encode('utf-8','replace')\n",
+    "            \n",
+    "            if html is None:\n",
+    "                text.strip()\n",
+    "                msgText.append(text)\n",
+    "            else:\n",
+    "                html.strip()\n",
+    "                msgText.append(html)\n",
+    "    else:\n",
+    "        text = str(emails.get_payload(decode=True), 'iso-8859-1','ignore').encode('utf-8','replace')\n",
+    "        text.strip()\n",
+    "        msgText.append(text)\n",
+    "            \n",
+    "    return msgText   "
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 110,
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "ham_mail = [extract_msg(x) for x in ham_emails]"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 111,
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "spam_mail = [extract_msg(x) for x in spam_email]"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 112,
+   "metadata": {},
+   "outputs": [
+    {
+     "data": {
+      "text/plain": [
+       "(2551, 500)"
+      ]
+     },
+     "execution_count": 112,
+     "metadata": {},
+     "output_type": "execute_result"
+    }
+   ],
+   "source": [
+    "len(ham_mail), len(spam_mail)"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 113,
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "hamdf = pd.DataFrame(ham_mail).T"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 114,
+   "metadata": {},
+   "outputs": [
+    {
+     "data": {
+      "text/html": [
+       "<div>\n",
+       "<style scoped>\n",
+       "    .dataframe tbody tr th:only-of-type {\n",
+       "        vertical-align: middle;\n",
+       "    }\n",
+       "\n",
+       "    .dataframe tbody tr th {\n",
+       "        vertical-align: top;\n",
+       "    }\n",
+       "\n",
+       "    .dataframe thead th {\n",
+       "        text-align: right;\n",
+       "    }\n",
+       "</style>\n",
+       "<table border=\"1\" class=\"dataframe\">\n",
+       "  <thead>\n",
+       "    <tr style=\"text-align: right;\">\n",
+       "      <th></th>\n",
+       "      <th>0</th>\n",
+       "      <th>1</th>\n",
+       "      <th>2</th>\n",
+       "    </tr>\n",
+       "  </thead>\n",
+       "  <tbody>\n",
+       "    <tr>\n",
+       "      <th>0</th>\n",
+       "      <td>b'    Date:        Wed, 21 Aug 2002 10:54:46 -...</td>\n",
+       "      <td>None</td>\n",
+       "      <td>None</td>\n",
+       "    </tr>\n",
+       "    <tr>\n",
+       "      <th>1</th>\n",
+       "      <td>b\"Martin A posted:\\nTassos Papadopoulos, the G...</td>\n",
+       "      <td>None</td>\n",
+       "      <td>None</td>\n",
+       "    </tr>\n",
+       "    <tr>\n",
+       "      <th>2</th>\n",
+       "      <td>b\"Man Threatens Explosion In Moscow \\n\\nThursd...</td>\n",
+       "      <td>None</td>\n",
+       "      <td>None</td>\n",
+       "    </tr>\n",
+       "    <tr>\n",
+       "      <th>3</th>\n",
+       "      <td>b\"Klez: The Virus That Won't Die\\n \\nAlready t...</td>\n",
+       "      <td>None</td>\n",
+       "      <td>None</td>\n",
+       "    </tr>\n",
+       "    <tr>\n",
+       "      <th>4</th>\n",
+       "      <td>b'On Wed Aug 21 2002 at 15:46, Ulises Ponce wr...</td>\n",
+       "      <td>None</td>\n",
+       "      <td>None</td>\n",
+       "    </tr>\n",
+       "    <tr>\n",
+       "      <th>...</th>\n",
+       "      <td>...</td>\n",
+       "      <td>...</td>\n",
+       "      <td>...</td>\n",
+       "    </tr>\n",
+       "    <tr>\n",
+       "      <th>2546</th>\n",
+       "      <td>b\"URL: http://www.newsisfree.com/click/-3,8714...</td>\n",
+       "      <td>None</td>\n",
+       "      <td>None</td>\n",
+       "    </tr>\n",
+       "    <tr>\n",
+       "      <th>2547</th>\n",
+       "      <td>b'URL: http://www.newsisfree.com/click/-4,8723...</td>\n",
+       "      <td>None</td>\n",
+       "      <td>None</td>\n",
+       "    </tr>\n",
+       "    <tr>\n",
+       "      <th>2548</th>\n",
+       "      <td>b'URL: http://www.newsisfree.com/click/-3,8710...</td>\n",
+       "      <td>None</td>\n",
+       "      <td>None</td>\n",
+       "    </tr>\n",
+       "    <tr>\n",
+       "      <th>2549</th>\n",
+       "      <td>b'URL: http://www.newsisfree.com/click/-4,8724...</td>\n",
+       "      <td>None</td>\n",
+       "      <td>None</td>\n",
+       "    </tr>\n",
+       "    <tr>\n",
+       "      <th>2550</th>\n",
+       "      <td>b'URL: http://www.newsisfree.com/click/-3,8708...</td>\n",
+       "      <td>None</td>\n",
+       "      <td>None</td>\n",
+       "    </tr>\n",
+       "  </tbody>\n",
+       "</table>\n",
+       "<p>2551 rows × 3 columns</p>\n",
+       "</div>"
+      ],
+      "text/plain": [
+       "                                                      0     1     2\n",
+       "0     b'    Date:        Wed, 21 Aug 2002 10:54:46 -...  None  None\n",
+       "1     b\"Martin A posted:\\nTassos Papadopoulos, the G...  None  None\n",
+       "2     b\"Man Threatens Explosion In Moscow \\n\\nThursd...  None  None\n",
+       "3     b\"Klez: The Virus That Won't Die\\n \\nAlready t...  None  None\n",
+       "4     b'On Wed Aug 21 2002 at 15:46, Ulises Ponce wr...  None  None\n",
+       "...                                                 ...   ...   ...\n",
+       "2546  b\"URL: http://www.newsisfree.com/click/-3,8714...  None  None\n",
+       "2547  b'URL: http://www.newsisfree.com/click/-4,8723...  None  None\n",
+       "2548  b'URL: http://www.newsisfree.com/click/-3,8710...  None  None\n",
+       "2549  b'URL: http://www.newsisfree.com/click/-4,8724...  None  None\n",
+       "2550  b'URL: http://www.newsisfree.com/click/-3,8708...  None  None\n",
+       "\n",
+       "[2551 rows x 3 columns]"
+      ]
+     },
+     "execution_count": 114,
+     "metadata": {},
+     "output_type": "execute_result"
+    }
+   ],
+   "source": [
+    "hamdf = hamdf.T\n",
+    "hamdf"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 115,
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "hamdf.dropna(axis=1, inplace=True)"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 116,
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "hamdf['labels'] = 0"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 117,
+   "metadata": {},
+   "outputs": [
+    {
+     "data": {
+      "text/html": [
+       "<div>\n",
+       "<style scoped>\n",
+       "    .dataframe tbody tr th:only-of-type {\n",
+       "        vertical-align: middle;\n",
+       "    }\n",
+       "\n",
+       "    .dataframe tbody tr th {\n",
+       "        vertical-align: top;\n",
+       "    }\n",
+       "\n",
+       "    .dataframe thead th {\n",
+       "        text-align: right;\n",
+       "    }\n",
+       "</style>\n",
+       "<table border=\"1\" class=\"dataframe\">\n",
+       "  <thead>\n",
+       "    <tr style=\"text-align: right;\">\n",
+       "      <th></th>\n",
+       "      <th>0</th>\n",
+       "      <th>labels</th>\n",
+       "    </tr>\n",
+       "  </thead>\n",
+       "  <tbody>\n",
+       "    <tr>\n",
+       "      <th>0</th>\n",
+       "      <td>b'    Date:        Wed, 21 Aug 2002 10:54:46 -...</td>\n",
+       "      <td>0</td>\n",
+       "    </tr>\n",
+       "    <tr>\n",
+       "      <th>1</th>\n",
+       "      <td>b\"Martin A posted:\\nTassos Papadopoulos, the G...</td>\n",
+       "      <td>0</td>\n",
+       "    </tr>\n",
+       "    <tr>\n",
+       "      <th>2</th>\n",
+       "      <td>b\"Man Threatens Explosion In Moscow \\n\\nThursd...</td>\n",
+       "      <td>0</td>\n",
+       "    </tr>\n",
+       "    <tr>\n",
+       "      <th>3</th>\n",
+       "      <td>b\"Klez: The Virus That Won't Die\\n \\nAlready t...</td>\n",
+       "      <td>0</td>\n",
+       "    </tr>\n",
+       "    <tr>\n",
+       "      <th>4</th>\n",
+       "      <td>b'On Wed Aug 21 2002 at 15:46, Ulises Ponce wr...</td>\n",
+       "      <td>0</td>\n",
+       "    </tr>\n",
+       "    <tr>\n",
+       "      <th>...</th>\n",
+       "      <td>...</td>\n",
+       "      <td>...</td>\n",
+       "    </tr>\n",
+       "    <tr>\n",
+       "      <th>2546</th>\n",
+       "      <td>b\"URL: http://www.newsisfree.com/click/-3,8714...</td>\n",
+       "      <td>0</td>\n",
+       "    </tr>\n",
+       "    <tr>\n",
+       "      <th>2547</th>\n",
+       "      <td>b'URL: http://www.newsisfree.com/click/-4,8723...</td>\n",
+       "      <td>0</td>\n",
+       "    </tr>\n",
+       "    <tr>\n",
+       "      <th>2548</th>\n",
+       "      <td>b'URL: http://www.newsisfree.com/click/-3,8710...</td>\n",
+       "      <td>0</td>\n",
+       "    </tr>\n",
+       "    <tr>\n",
+       "      <th>2549</th>\n",
+       "      <td>b'URL: http://www.newsisfree.com/click/-4,8724...</td>\n",
+       "      <td>0</td>\n",
+       "    </tr>\n",
+       "    <tr>\n",
+       "      <th>2550</th>\n",
+       "      <td>b'URL: http://www.newsisfree.com/click/-3,8708...</td>\n",
+       "      <td>0</td>\n",
+       "    </tr>\n",
+       "  </tbody>\n",
+       "</table>\n",
+       "<p>2551 rows × 2 columns</p>\n",
+       "</div>"
+      ],
+      "text/plain": [
+       "                                                      0  labels\n",
+       "0     b'    Date:        Wed, 21 Aug 2002 10:54:46 -...       0\n",
+       "1     b\"Martin A posted:\\nTassos Papadopoulos, the G...       0\n",
+       "2     b\"Man Threatens Explosion In Moscow \\n\\nThursd...       0\n",
+       "3     b\"Klez: The Virus That Won't Die\\n \\nAlready t...       0\n",
+       "4     b'On Wed Aug 21 2002 at 15:46, Ulises Ponce wr...       0\n",
+       "...                                                 ...     ...\n",
+       "2546  b\"URL: http://www.newsisfree.com/click/-3,8714...       0\n",
+       "2547  b'URL: http://www.newsisfree.com/click/-4,8723...       0\n",
+       "2548  b'URL: http://www.newsisfree.com/click/-3,8710...       0\n",
+       "2549  b'URL: http://www.newsisfree.com/click/-4,8724...       0\n",
+       "2550  b'URL: http://www.newsisfree.com/click/-3,8708...       0\n",
+       "\n",
+       "[2551 rows x 2 columns]"
+      ]
+     },
+     "execution_count": 117,
+     "metadata": {},
+     "output_type": "execute_result"
+    }
+   ],
+   "source": [
+    "hamdf"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 124,
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "spamdf = pd.DataFrame(spam_mail)"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 126,
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "spamdf = spamdf.T"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 127,
+   "metadata": {},
+   "outputs": [
+    {
+     "data": {
+      "text/html": [
+       "<div>\n",
+       "<style scoped>\n",
+       "    .dataframe tbody tr th:only-of-type {\n",
+       "        vertical-align: middle;\n",
+       "    }\n",
+       "\n",
+       "    .dataframe tbody tr th {\n",
+       "        vertical-align: top;\n",
+       "    }\n",
+       "\n",
+       "    .dataframe thead th {\n",
+       "        text-align: right;\n",
+       "    }\n",
+       "</style>\n",
+       "<table border=\"1\" class=\"dataframe\">\n",
+       "  <thead>\n",
+       "    <tr style=\"text-align: right;\">\n",
+       "      <th></th>\n",
+       "      <th>0</th>\n",
+       "      <th>1</th>\n",
+       "      <th>2</th>\n",
+       "    </tr>\n",
+       "  </thead>\n",
+       "  <tbody>\n",
+       "    <tr>\n",
+       "      <th>0</th>\n",
+       "      <td>b'&lt;!DOCTYPE HTML PUBLIC \"-//W3C//DTD HTML 4.0 ...</td>\n",
+       "      <td>None</td>\n",
+       "      <td>None</td>\n",
+       "    </tr>\n",
+       "    <tr>\n",
+       "      <th>1</th>\n",
+       "      <td>b\"1) Fight The Risk of Cancer!\\nhttp://www.adc...</td>\n",
+       "      <td>None</td>\n",
+       "      <td>None</td>\n",
+       "    </tr>\n",
+       "    <tr>\n",
+       "      <th>2</th>\n",
+       "      <td>b\"1) Fight The Risk of Cancer!\\nhttp://www.adc...</td>\n",
+       "      <td>None</td>\n",
+       "      <td>None</td>\n",
+       "    </tr>\n",
+       "    <tr>\n",
+       "      <th>3</th>\n",
+       "      <td>b\"############################################...</td>\n",
+       "      <td>None</td>\n",
+       "      <td>None</td>\n",
+       "    </tr>\n",
+       "    <tr>\n",
+       "      <th>4</th>\n",
+       "      <td>b\"I thought you might like these:\\n1) Slim Dow...</td>\n",
+       "      <td>None</td>\n",
+       "      <td>None</td>\n",
+       "    </tr>\n",
+       "    <tr>\n",
+       "      <th>...</th>\n",
+       "      <td>...</td>\n",
+       "      <td>...</td>\n",
+       "      <td>...</td>\n",
+       "    </tr>\n",
+       "    <tr>\n",
+       "      <th>495</th>\n",
+       "      <td>b\"There is NO stumbling on to it! \\n\\nThe grea...</td>\n",
+       "      <td>None</td>\n",
+       "      <td>None</td>\n",
+       "    </tr>\n",
+       "    <tr>\n",
+       "      <th>496</th>\n",
+       "      <td>b\" What does it mean to be made in the USA?\\n ...</td>\n",
+       "      <td>Hit the Road with CNA We encourage you to atte...</td>\n",
+       "      <td>None</td>\n",
+       "    </tr>\n",
+       "    <tr>\n",
+       "      <th>497</th>\n",
+       "      <td>b'&lt;html&gt;\\n\\n&lt;head&gt;\\n&lt;meta http-equiv=\"Content-...</td>\n",
+       "      <td>None</td>\n",
+       "      <td>None</td>\n",
+       "    </tr>\n",
+       "    <tr>\n",
+       "      <th>498</th>\n",
+       "      <td>b'&lt;HTML&gt;\\n&lt;BODY&gt;\\n  &lt;tr valign=\"top\"&gt; \\n    &lt;t...</td>\n",
+       "      <td>None</td>\n",
+       "      <td>None</td>\n",
+       "    </tr>\n",
+       "    <tr>\n",
+       "      <th>499</th>\n",
+       "      <td>b'UNCOMMON EXOTIC PLEASURE BOTANICALS!\\n\\nFeel...</td>\n",
+       "      <td>None</td>\n",
+       "      <td>None</td>\n",
+       "    </tr>\n",
+       "  </tbody>\n",
+       "</table>\n",
+       "<p>500 rows × 3 columns</p>\n",
+       "</div>"
+      ],
+      "text/plain": [
+       "                                                     0  \\\n",
+       "0    b'<!DOCTYPE HTML PUBLIC \"-//W3C//DTD HTML 4.0 ...   \n",
+       "1    b\"1) Fight The Risk of Cancer!\\nhttp://www.adc...   \n",
+       "2    b\"1) Fight The Risk of Cancer!\\nhttp://www.adc...   \n",
+       "3    b\"############################################...   \n",
+       "4    b\"I thought you might like these:\\n1) Slim Dow...   \n",
+       "..                                                 ...   \n",
+       "495  b\"There is NO stumbling on to it! \\n\\nThe grea...   \n",
+       "496  b\" What does it mean to be made in the USA?\\n ...   \n",
+       "497  b'<html>\\n\\n<head>\\n<meta http-equiv=\"Content-...   \n",
+       "498  b'<HTML>\\n<BODY>\\n  <tr valign=\"top\"> \\n    <t...   \n",
+       "499  b'UNCOMMON EXOTIC PLEASURE BOTANICALS!\\n\\nFeel...   \n",
+       "\n",
+       "                                                     1     2  \n",
+       "0                                                 None  None  \n",
+       "1                                                 None  None  \n",
+       "2                                                 None  None  \n",
+       "3                                                 None  None  \n",
+       "4                                                 None  None  \n",
+       "..                                                 ...   ...  \n",
+       "495                                               None  None  \n",
+       "496  Hit the Road with CNA We encourage you to atte...  None  \n",
+       "497                                               None  None  \n",
+       "498                                               None  None  \n",
+       "499                                               None  None  \n",
+       "\n",
+       "[500 rows x 3 columns]"
+      ]
+     },
+     "execution_count": 127,
+     "metadata": {},
+     "output_type": "execute_result"
+    }
+   ],
+   "source": [
+    "spamdf"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 128,
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "spamdf.dropna(axis=1, inplace=True)"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 129,
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "spamdf['labels'] =1"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 130,
+   "metadata": {},
+   "outputs": [
+    {
+     "data": {
+      "text/html": [
+       "<div>\n",
+       "<style scoped>\n",
+       "    .dataframe tbody tr th:only-of-type {\n",
+       "        vertical-align: middle;\n",
+       "    }\n",
+       "\n",
+       "    .dataframe tbody tr th {\n",
+       "        vertical-align: top;\n",
+       "    }\n",
+       "\n",
+       "    .dataframe thead th {\n",
+       "        text-align: right;\n",
+       "    }\n",
+       "</style>\n",
+       "<table border=\"1\" class=\"dataframe\">\n",
+       "  <thead>\n",
+       "    <tr style=\"text-align: right;\">\n",
+       "      <th></th>\n",
+       "      <th>0</th>\n",
+       "      <th>labels</th>\n",
+       "    </tr>\n",
+       "  </thead>\n",
+       "  <tbody>\n",
+       "    <tr>\n",
+       "      <th>0</th>\n",
+       "      <td>b'&lt;!DOCTYPE HTML PUBLIC \"-//W3C//DTD HTML 4.0 ...</td>\n",
+       "      <td>1</td>\n",
+       "    </tr>\n",
+       "    <tr>\n",
+       "      <th>1</th>\n",
+       "      <td>b\"1) Fight The Risk of Cancer!\\nhttp://www.adc...</td>\n",
+       "      <td>1</td>\n",
+       "    </tr>\n",
+       "    <tr>\n",
+       "      <th>2</th>\n",
+       "      <td>b\"1) Fight The Risk of Cancer!\\nhttp://www.adc...</td>\n",
+       "      <td>1</td>\n",
+       "    </tr>\n",
+       "    <tr>\n",
+       "      <th>3</th>\n",
+       "      <td>b\"############################################...</td>\n",
+       "      <td>1</td>\n",
+       "    </tr>\n",
+       "    <tr>\n",
+       "      <th>4</th>\n",
+       "      <td>b\"I thought you might like these:\\n1) Slim Dow...</td>\n",
+       "      <td>1</td>\n",
+       "    </tr>\n",
+       "    <tr>\n",
+       "      <th>...</th>\n",
+       "      <td>...</td>\n",
+       "      <td>...</td>\n",
+       "    </tr>\n",
+       "    <tr>\n",
+       "      <th>495</th>\n",
+       "      <td>b\"There is NO stumbling on to it! \\n\\nThe grea...</td>\n",
+       "      <td>1</td>\n",
+       "    </tr>\n",
+       "    <tr>\n",
+       "      <th>496</th>\n",
+       "      <td>b\" What does it mean to be made in the USA?\\n ...</td>\n",
+       "      <td>1</td>\n",
+       "    </tr>\n",
+       "    <tr>\n",
+       "      <th>497</th>\n",
+       "      <td>b'&lt;html&gt;\\n\\n&lt;head&gt;\\n&lt;meta http-equiv=\"Content-...</td>\n",
+       "      <td>1</td>\n",
+       "    </tr>\n",
+       "    <tr>\n",
+       "      <th>498</th>\n",
+       "      <td>b'&lt;HTML&gt;\\n&lt;BODY&gt;\\n  &lt;tr valign=\"top\"&gt; \\n    &lt;t...</td>\n",
+       "      <td>1</td>\n",
+       "    </tr>\n",
+       "    <tr>\n",
+       "      <th>499</th>\n",
+       "      <td>b'UNCOMMON EXOTIC PLEASURE BOTANICALS!\\n\\nFeel...</td>\n",
+       "      <td>1</td>\n",
+       "    </tr>\n",
+       "  </tbody>\n",
+       "</table>\n",
+       "<p>500 rows × 2 columns</p>\n",
+       "</div>"
+      ],
+      "text/plain": [
+       "                                                     0  labels\n",
+       "0    b'<!DOCTYPE HTML PUBLIC \"-//W3C//DTD HTML 4.0 ...       1\n",
+       "1    b\"1) Fight The Risk of Cancer!\\nhttp://www.adc...       1\n",
+       "2    b\"1) Fight The Risk of Cancer!\\nhttp://www.adc...       1\n",
+       "3    b\"############################################...       1\n",
+       "4    b\"I thought you might like these:\\n1) Slim Dow...       1\n",
+       "..                                                 ...     ...\n",
+       "495  b\"There is NO stumbling on to it! \\n\\nThe grea...       1\n",
+       "496  b\" What does it mean to be made in the USA?\\n ...       1\n",
+       "497  b'<html>\\n\\n<head>\\n<meta http-equiv=\"Content-...       1\n",
+       "498  b'<HTML>\\n<BODY>\\n  <tr valign=\"top\"> \\n    <t...       1\n",
+       "499  b'UNCOMMON EXOTIC PLEASURE BOTANICALS!\\n\\nFeel...       1\n",
+       "\n",
+       "[500 rows x 2 columns]"
+      ]
+     },
+     "execution_count": 130,
+     "metadata": {},
+     "output_type": "execute_result"
+    }
+   ],
+   "source": [
+    "spamdf"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 168,
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "df = [hamdf, spamdf]\n",
+    "email = pd.concat(df, ignore_index=True)"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 169,
+   "metadata": {},
+   "outputs": [
+    {
+     "data": {
+      "text/html": [
+       "<div>\n",
+       "<style scoped>\n",
+       "    .dataframe tbody tr th:only-of-type {\n",
+       "        vertical-align: middle;\n",
+       "    }\n",
+       "\n",
+       "    .dataframe tbody tr th {\n",
+       "        vertical-align: top;\n",
+       "    }\n",
+       "\n",
+       "    .dataframe thead th {\n",
+       "        text-align: right;\n",
+       "    }\n",
+       "</style>\n",
+       "<table border=\"1\" class=\"dataframe\">\n",
+       "  <thead>\n",
+       "    <tr style=\"text-align: right;\">\n",
+       "      <th></th>\n",
+       "      <th>0</th>\n",
+       "      <th>labels</th>\n",
+       "    </tr>\n",
+       "  </thead>\n",
+       "  <tbody>\n",
+       "    <tr>\n",
+       "      <th>0</th>\n",
+       "      <td>b'    Date:        Wed, 21 Aug 2002 10:54:46 -...</td>\n",
+       "      <td>0</td>\n",
+       "    </tr>\n",
+       "    <tr>\n",
+       "      <th>1</th>\n",
+       "      <td>b\"Martin A posted:\\nTassos Papadopoulos, the G...</td>\n",
+       "      <td>0</td>\n",
+       "    </tr>\n",
+       "    <tr>\n",
+       "      <th>2</th>\n",
+       "      <td>b\"Man Threatens Explosion In Moscow \\n\\nThursd...</td>\n",
+       "      <td>0</td>\n",
+       "    </tr>\n",
+       "    <tr>\n",
+       "      <th>3</th>\n",
+       "      <td>b\"Klez: The Virus That Won't Die\\n \\nAlready t...</td>\n",
+       "      <td>0</td>\n",
+       "    </tr>\n",
+       "    <tr>\n",
+       "      <th>4</th>\n",
+       "      <td>b'On Wed Aug 21 2002 at 15:46, Ulises Ponce wr...</td>\n",
+       "      <td>0</td>\n",
+       "    </tr>\n",
+       "  </tbody>\n",
+       "</table>\n",
+       "</div>"
+      ],
+      "text/plain": [
+       "                                                   0  labels\n",
+       "0  b'    Date:        Wed, 21 Aug 2002 10:54:46 -...       0\n",
+       "1  b\"Martin A posted:\\nTassos Papadopoulos, the G...       0\n",
+       "2  b\"Man Threatens Explosion In Moscow \\n\\nThursd...       0\n",
+       "3  b\"Klez: The Virus That Won't Die\\n \\nAlready t...       0\n",
+       "4  b'On Wed Aug 21 2002 at 15:46, Ulises Ponce wr...       0"
+      ]
+     },
+     "execution_count": 169,
+     "metadata": {},
+     "output_type": "execute_result"
+    }
+   ],
+   "source": [
+    "email.head()"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 170,
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "email.rename(columns={0:'Message'}, inplace=True)"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 171,
+   "metadata": {},
+   "outputs": [
+    {
+     "data": {
+      "text/html": [
+       "<div>\n",
+       "<style scoped>\n",
+       "    .dataframe tbody tr th:only-of-type {\n",
+       "        vertical-align: middle;\n",
+       "    }\n",
+       "\n",
+       "    .dataframe tbody tr th {\n",
+       "        vertical-align: top;\n",
+       "    }\n",
+       "\n",
+       "    .dataframe thead th {\n",
+       "        text-align: right;\n",
+       "    }\n",
+       "</style>\n",
+       "<table border=\"1\" class=\"dataframe\">\n",
+       "  <thead>\n",
+       "    <tr style=\"text-align: right;\">\n",
+       "      <th></th>\n",
+       "      <th>labels</th>\n",
+       "    </tr>\n",
+       "  </thead>\n",
+       "  <tbody>\n",
+       "    <tr>\n",
+       "      <th>count</th>\n",
+       "      <td>3051.000000</td>\n",
+       "    </tr>\n",
+       "    <tr>\n",
+       "      <th>mean</th>\n",
+       "      <td>0.163881</td>\n",
+       "    </tr>\n",
+       "    <tr>\n",
+       "      <th>std</th>\n",
+       "      <td>0.370228</td>\n",
+       "    </tr>\n",
+       "    <tr>\n",
+       "      <th>min</th>\n",
+       "      <td>0.000000</td>\n",
+       "    </tr>\n",
+       "    <tr>\n",
+       "      <th>25%</th>\n",
+       "      <td>0.000000</td>\n",
+       "    </tr>\n",
+       "    <tr>\n",
+       "      <th>50%</th>\n",
+       "      <td>0.000000</td>\n",
+       "    </tr>\n",
+       "    <tr>\n",
+       "      <th>75%</th>\n",
+       "      <td>0.000000</td>\n",
+       "    </tr>\n",
+       "    <tr>\n",
+       "      <th>max</th>\n",
+       "      <td>1.000000</td>\n",
+       "    </tr>\n",
+       "  </tbody>\n",
+       "</table>\n",
+       "</div>"
+      ],
+      "text/plain": [
+       "            labels\n",
+       "count  3051.000000\n",
+       "mean      0.163881\n",
+       "std       0.370228\n",
+       "min       0.000000\n",
+       "25%       0.000000\n",
+       "50%       0.000000\n",
+       "75%       0.000000\n",
+       "max       1.000000"
+      ]
+     },
+     "execution_count": 171,
+     "metadata": {},
+     "output_type": "execute_result"
+    }
+   ],
+   "source": [
+    "email.describe()"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 172,
+   "metadata": {},
+   "outputs": [
+    {
+     "data": {
+      "text/html": [
+       "<div>\n",
+       "<style scoped>\n",
+       "    .dataframe tbody tr th:only-of-type {\n",
+       "        vertical-align: middle;\n",
+       "    }\n",
+       "\n",
+       "    .dataframe tbody tr th {\n",
+       "        vertical-align: top;\n",
+       "    }\n",
+       "\n",
+       "    .dataframe thead th {\n",
+       "        text-align: right;\n",
+       "    }\n",
+       "</style>\n",
+       "<table border=\"1\" class=\"dataframe\">\n",
+       "  <thead>\n",
+       "    <tr style=\"text-align: right;\">\n",
+       "      <th></th>\n",
+       "      <th>Message</th>\n",
+       "      <th>labels</th>\n",
+       "    </tr>\n",
+       "  </thead>\n",
+       "  <tbody>\n",
+       "    <tr>\n",
+       "      <th>0</th>\n",
+       "      <td>b'    Date:        Wed, 21 Aug 2002 10:54:46 -...</td>\n",
+       "      <td>0</td>\n",
+       "    </tr>\n",
+       "    <tr>\n",
+       "      <th>1</th>\n",
+       "      <td>b\"Martin A posted:\\nTassos Papadopoulos, the G...</td>\n",
+       "      <td>0</td>\n",
+       "    </tr>\n",
+       "    <tr>\n",
+       "      <th>2</th>\n",
+       "      <td>b\"Man Threatens Explosion In Moscow \\n\\nThursd...</td>\n",
+       "      <td>0</td>\n",
+       "    </tr>\n",
+       "    <tr>\n",
+       "      <th>3</th>\n",
+       "      <td>b\"Klez: The Virus That Won't Die\\n \\nAlready t...</td>\n",
+       "      <td>0</td>\n",
+       "    </tr>\n",
+       "    <tr>\n",
+       "      <th>4</th>\n",
+       "      <td>b'On Wed Aug 21 2002 at 15:46, Ulises Ponce wr...</td>\n",
+       "      <td>0</td>\n",
+       "    </tr>\n",
+       "  </tbody>\n",
+       "</table>\n",
+       "</div>"
+      ],
+      "text/plain": [
+       "                                             Message  labels\n",
+       "0  b'    Date:        Wed, 21 Aug 2002 10:54:46 -...       0\n",
+       "1  b\"Martin A posted:\\nTassos Papadopoulos, the G...       0\n",
+       "2  b\"Man Threatens Explosion In Moscow \\n\\nThursd...       0\n",
+       "3  b\"Klez: The Virus That Won't Die\\n \\nAlready t...       0\n",
+       "4  b'On Wed Aug 21 2002 at 15:46, Ulises Ponce wr...       0"
+      ]
+     },
+     "execution_count": 172,
+     "metadata": {},
+     "output_type": "execute_result"
+    }
+   ],
+   "source": [
+    "email.head()"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 180,
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "email['Message'] = email['Message'].astype(str)"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 185,
+   "metadata": {},
+   "outputs": [
+    {
+     "name": "stdout",
+     "output_type": "stream",
+     "text": [
+      "<class 'pandas.core.frame.DataFrame'>\n",
+      "RangeIndex: 3051 entries, 0 to 3050\n",
+      "Data columns (total 2 columns):\n",
+      " #   Column   Non-Null Count  Dtype \n",
+      "---  ------   --------------  ----- \n",
+      " 0   Message  3051 non-null   object\n",
+      " 1   labels   3051 non-null   int64 \n",
+      "dtypes: int64(1), object(1)\n",
+      "memory usage: 47.8+ KB\n"
+     ]
+    }
+   ],
+   "source": [
+    "email.info()"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 173,
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "stopword = nltk.corpus.stopwords.words('english')"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 174,
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "wn = nltk.WordNetLemmatizer()"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 200,
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "def clean_text(text):\n",
+    "    text = re.sub('[^a-zA-Z0-9]', ' ', text)\n",
+    "    text = re.sub(r\"\\b[a-zA-Z]\\b\", \"\", text)\n",
+    "    text = ''.join([word.lower() for word in text if word not in string.punctuation])\n",
+    "    tokens = re.split('\\W+', text)\n",
+    "    text = [wn.lemmatize(word) for word in tokens if word not in stopword]\n",
+    "    return text"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 201,
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "email['clean'] = email['Message'].apply(lambda x: clean_text(x))"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 202,
+   "metadata": {},
+   "outputs": [
+    {
+     "data": {
+      "text/html": [
+       "<div>\n",
+       "<style scoped>\n",
+       "    .dataframe tbody tr th:only-of-type {\n",
+       "        vertical-align: middle;\n",
+       "    }\n",
+       "\n",
+       "    .dataframe tbody tr th {\n",
+       "        vertical-align: top;\n",
+       "    }\n",
+       "\n",
+       "    .dataframe thead th {\n",
+       "        text-align: right;\n",
+       "    }\n",
+       "</style>\n",
+       "<table border=\"1\" class=\"dataframe\">\n",
+       "  <thead>\n",
+       "    <tr style=\"text-align: right;\">\n",
+       "      <th></th>\n",
+       "      <th>Message</th>\n",
+       "      <th>labels</th>\n",
+       "      <th>clean</th>\n",
+       "    </tr>\n",
+       "  </thead>\n",
+       "  <tbody>\n",
+       "    <tr>\n",
+       "      <th>0</th>\n",
+       "      <td>b'    Date:        Wed, 21 Aug 2002 10:54:46 -...</td>\n",
+       "      <td>0</td>\n",
+       "      <td>[, date, wed, 21, aug, 2002, 10, 54, 46, 0500,...</td>\n",
+       "    </tr>\n",
+       "    <tr>\n",
+       "      <th>1</th>\n",
+       "      <td>b\"Martin A posted:\\nTassos Papadopoulos, the G...</td>\n",
+       "      <td>0</td>\n",
+       "      <td>[, martin, posted, ntassos, papadopoulos, gree...</td>\n",
+       "    </tr>\n",
+       "    <tr>\n",
+       "      <th>2</th>\n",
+       "      <td>b\"Man Threatens Explosion In Moscow \\n\\nThursd...</td>\n",
+       "      <td>0</td>\n",
+       "      <td>[, man, threatens, explosion, moscow, nthursda...</td>\n",
+       "    </tr>\n",
+       "    <tr>\n",
+       "      <th>3</th>\n",
+       "      <td>b\"Klez: The Virus That Won't Die\\n \\nAlready t...</td>\n",
+       "      <td>0</td>\n",
+       "      <td>[, klez, virus, die, nalready, prolific, virus...</td>\n",
+       "    </tr>\n",
+       "    <tr>\n",
+       "      <th>4</th>\n",
+       "      <td>b'On Wed Aug 21 2002 at 15:46, Ulises Ponce wr...</td>\n",
+       "      <td>0</td>\n",
+       "      <td>[, wed, aug, 21, 2002, 15, 46, ulises, ponce, ...</td>\n",
+       "    </tr>\n",
+       "    <tr>\n",
+       "      <th>...</th>\n",
+       "      <td>...</td>\n",
+       "      <td>...</td>\n",
+       "      <td>...</td>\n",
+       "    </tr>\n",
+       "    <tr>\n",
+       "      <th>3046</th>\n",
+       "      <td>b\"There is NO stumbling on to it! \\n\\nThe grea...</td>\n",
+       "      <td>1</td>\n",
+       "      <td>[, stumbling, nthe, greatest, way, marketing, ...</td>\n",
+       "    </tr>\n",
+       "    <tr>\n",
+       "      <th>3047</th>\n",
+       "      <td>b\" What does it mean to be made in the USA?\\n ...</td>\n",
+       "      <td>1</td>\n",
+       "      <td>[, mean, made, usa, cna, hitting, road, tell, ...</td>\n",
+       "    </tr>\n",
+       "    <tr>\n",
+       "      <th>3048</th>\n",
+       "      <td>b'&lt;html&gt;\\n\\n&lt;head&gt;\\n&lt;meta http-equiv=\"Content-...</td>\n",
+       "      <td>1</td>\n",
+       "      <td>[, html, head, meta, http, equiv, content, lan...</td>\n",
+       "    </tr>\n",
+       "    <tr>\n",
+       "      <th>3049</th>\n",
+       "      <td>b'&lt;HTML&gt;\\n&lt;BODY&gt;\\n  &lt;tr valign=\"top\"&gt; \\n    &lt;t...</td>\n",
+       "      <td>1</td>\n",
+       "      <td>[, html, body, tr, valign, top, td, height, 29...</td>\n",
+       "    </tr>\n",
+       "    <tr>\n",
+       "      <th>3050</th>\n",
+       "      <td>b'UNCOMMON EXOTIC PLEASURE BOTANICALS!\\n\\nFeel...</td>\n",
+       "      <td>1</td>\n",
+       "      <td>[, uncommon, exotic, pleasure, botanical, nfee...</td>\n",
+       "    </tr>\n",
+       "  </tbody>\n",
+       "</table>\n",
+       "<p>3051 rows × 3 columns</p>\n",
+       "</div>"
+      ],
+      "text/plain": [
+       "                                                Message  labels  \\\n",
+       "0     b'    Date:        Wed, 21 Aug 2002 10:54:46 -...       0   \n",
+       "1     b\"Martin A posted:\\nTassos Papadopoulos, the G...       0   \n",
+       "2     b\"Man Threatens Explosion In Moscow \\n\\nThursd...       0   \n",
+       "3     b\"Klez: The Virus That Won't Die\\n \\nAlready t...       0   \n",
+       "4     b'On Wed Aug 21 2002 at 15:46, Ulises Ponce wr...       0   \n",
+       "...                                                 ...     ...   \n",
+       "3046  b\"There is NO stumbling on to it! \\n\\nThe grea...       1   \n",
+       "3047  b\" What does it mean to be made in the USA?\\n ...       1   \n",
+       "3048  b'<html>\\n\\n<head>\\n<meta http-equiv=\"Content-...       1   \n",
+       "3049  b'<HTML>\\n<BODY>\\n  <tr valign=\"top\"> \\n    <t...       1   \n",
+       "3050  b'UNCOMMON EXOTIC PLEASURE BOTANICALS!\\n\\nFeel...       1   \n",
+       "\n",
+       "                                                  clean  \n",
+       "0     [, date, wed, 21, aug, 2002, 10, 54, 46, 0500,...  \n",
+       "1     [, martin, posted, ntassos, papadopoulos, gree...  \n",
+       "2     [, man, threatens, explosion, moscow, nthursda...  \n",
+       "3     [, klez, virus, die, nalready, prolific, virus...  \n",
+       "4     [, wed, aug, 21, 2002, 15, 46, ulises, ponce, ...  \n",
+       "...                                                 ...  \n",
+       "3046  [, stumbling, nthe, greatest, way, marketing, ...  \n",
+       "3047  [, mean, made, usa, cna, hitting, road, tell, ...  \n",
+       "3048  [, html, head, meta, http, equiv, content, lan...  \n",
+       "3049  [, html, body, tr, valign, top, td, height, 29...  \n",
+       "3050  [, uncommon, exotic, pleasure, botanical, nfee...  \n",
+       "\n",
+       "[3051 rows x 3 columns]"
+      ]
+     },
+     "execution_count": 202,
+     "metadata": {},
+     "output_type": "execute_result"
+    }
+   ],
+   "source": [
+    "email"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 204,
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "mail = email.drop('Message', axis=1)"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 205,
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "mail.to_csv('mail.csv')"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 206,
+   "metadata": {},
+   "outputs": [
+    {
+     "name": "stdout",
+     "output_type": "stream",
+     "text": [
+      "<class 'pandas.core.frame.DataFrame'>\n",
+      "RangeIndex: 3051 entries, 0 to 3050\n",
+      "Data columns (total 2 columns):\n",
+      " #   Column  Non-Null Count  Dtype \n",
+      "---  ------  --------------  ----- \n",
+      " 0   labels  3051 non-null   int64 \n",
+      " 1   clean   3051 non-null   object\n",
+      "dtypes: int64(1), object(1)\n",
+      "memory usage: 47.8+ KB\n"
+     ]
+    }
+   ],
+   "source": [
+    "mail.info()"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 207,
+   "metadata": {},
+   "outputs": [
+    {
+     "data": {
+      "text/html": [
+       "<div>\n",
+       "<style scoped>\n",
+       "    .dataframe tbody tr th:only-of-type {\n",
+       "        vertical-align: middle;\n",
+       "    }\n",
+       "\n",
+       "    .dataframe tbody tr th {\n",
+       "        vertical-align: top;\n",
+       "    }\n",
+       "\n",
+       "    .dataframe thead th {\n",
+       "        text-align: right;\n",
+       "    }\n",
+       "</style>\n",
+       "<table border=\"1\" class=\"dataframe\">\n",
+       "  <thead>\n",
+       "    <tr style=\"text-align: right;\">\n",
+       "      <th></th>\n",
+       "      <th>labels</th>\n",
+       "      <th>clean</th>\n",
+       "    </tr>\n",
+       "  </thead>\n",
+       "  <tbody>\n",
+       "    <tr>\n",
+       "      <th>0</th>\n",
+       "      <td>0</td>\n",
+       "      <td>[, date, wed, 21, aug, 2002, 10, 54, 46, 0500,...</td>\n",
+       "    </tr>\n",
+       "    <tr>\n",
+       "      <th>1</th>\n",
+       "      <td>0</td>\n",
+       "      <td>[, martin, posted, ntassos, papadopoulos, gree...</td>\n",
+       "    </tr>\n",
+       "    <tr>\n",
+       "      <th>2</th>\n",
+       "      <td>0</td>\n",
+       "      <td>[, man, threatens, explosion, moscow, nthursda...</td>\n",
+       "    </tr>\n",
+       "    <tr>\n",
+       "      <th>3</th>\n",
+       "      <td>0</td>\n",
+       "      <td>[, klez, virus, die, nalready, prolific, virus...</td>\n",
+       "    </tr>\n",
+       "    <tr>\n",
+       "      <th>4</th>\n",
+       "      <td>0</td>\n",
+       "      <td>[, wed, aug, 21, 2002, 15, 46, ulises, ponce, ...</td>\n",
+       "    </tr>\n",
+       "  </tbody>\n",
+       "</table>\n",
+       "</div>"
+      ],
+      "text/plain": [
+       "   labels                                              clean\n",
+       "0       0  [, date, wed, 21, aug, 2002, 10, 54, 46, 0500,...\n",
+       "1       0  [, martin, posted, ntassos, papadopoulos, gree...\n",
+       "2       0  [, man, threatens, explosion, moscow, nthursda...\n",
+       "3       0  [, klez, virus, die, nalready, prolific, virus...\n",
+       "4       0  [, wed, aug, 21, 2002, 15, 46, ulises, ponce, ..."
+      ]
+     },
+     "execution_count": 207,
+     "metadata": {},
+     "output_type": "execute_result"
+    }
+   ],
+   "source": [
+    "mail.head()"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": null,
+   "metadata": {},
+   "outputs": [],
+   "source": []
+  }
+ ],
+ "metadata": {
+  "kernelspec": {
+   "display_name": "Python 3",
+   "language": "python",
+   "name": "python3"
+  },
+  "language_info": {
+   "codemirror_mode": {
+    "name": "ipython",
+    "version": 3
+   },
+   "file_extension": ".py",
+   "mimetype": "text/x-python",
+   "name": "python",
+   "nbconvert_exporter": "python",
+   "pygments_lexer": "ipython3",
+   "version": "3.7.8"
+  }
+ },
+ "nbformat": 4,
+ "nbformat_minor": 4
+}
